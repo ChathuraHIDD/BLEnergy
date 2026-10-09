@@ -150,7 +150,7 @@ export default function ProjectFormPage() {
     return clean;
   };
 
-  const tabHasError = (t) => Object.keys(errors).some((k) => errors[k] && k.startsWith(`${t}.`) || (t === 'wiring' && k === 'wiring_contractor_id') || (t === 'agreement' && k.startsWith('services.')));
+  const tabHasError = (t) => Object.keys(errors).some((k) => errors[k] && (k.startsWith(`${t}.`) || (t === 'wiring' && k === 'wiring_contractor_id') || (t === 'agreement' && k.startsWith('services.'))));
 
   const submit = async () => {
     const errs = validate();
