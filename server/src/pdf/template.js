@@ -70,7 +70,7 @@ export class BrandedPdf {
   #header() {
     const { doc, company } = this;
     doc.save();
-    doc.rect(0, 0, PAGE.width, HEADER_H).fill(C.black);
+    doc.rect(0, 0, PAGE.width, HEADER_H).fill('#000000');
     try {
       doc.image(LOGO, 26, 12, { height: HEADER_H - 24 });
     } catch {
@@ -153,14 +153,16 @@ export class BrandedPdf {
     const colW = CONTENT_W / columns;
     for (let i = 0; i < pairs.length; i += columns) {
       const row = pairs.slice(i, i + columns);
+      doc.font('Helvetica').fontSize(7.5);
+      const labelH = Math.max(...row.map(([k]) => doc.heightOfString(String(k).toUpperCase(), { width: colW - 12, characterSpacing: 0.4 })));
       doc.font('Helvetica-Bold').fontSize(9.5);
-      const h = Math.max(...row.map(([, v]) => doc.heightOfString(String(v ?? '-'), { width: colW - 12 }))) + 16;
+      const h = labelH + Math.max(...row.map(([, v]) => doc.heightOfString(String(v ?? '-'), { width: colW - 12 }))) + 8;
       this.ensureSpace(h);
       const y = doc.y;
       row.forEach(([k, v], j) => {
         const x = M.left + j * colW;
         doc.font('Helvetica').fontSize(7.5).fillColor(C.muted).text(String(k).toUpperCase(), x, y, { width: colW - 12, characterSpacing: 0.4 });
-        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C.ink).text(String(v ?? '-') || '-', x, y + 10, { width: colW - 12 });
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C.ink).text(String(v ?? '-') || '-', x, y + labelH + 1, { width: colW - 12 });
       });
       doc.x = M.left;
       doc.y = y + h;

@@ -211,3 +211,15 @@ CREATE TABLE notifications (
   UNIQUE (source_type, source_id, event_date, days_before)
 );
 CREATE INDEX notifications_unread_idx ON notifications (is_read, created_at DESC);
+
+-- Invoice totals and balances (tax applied after discount).
+CREATE VIEW invoice_balances AS
+SELECT i.id,
+       coalesce(it.subtotal, 0)                                                            AS subtotal,
+       round((coalesce(it.subtotal, 0) - i.discount) * i.tax_rate / 100, 2)                AS tax_amount,
+       round((coalesce(it.subtotal, 0) - i.discount) * (1 + i.tax_rate / 100), 2)          AS total,
+       coalesce(pd.paid, 0)                                                                AS paid,
+       round((coalesce(it.subtotal, 0) - i.discount) * (1 + i.tax_rate / 100), 2) - coalesce(pd.paid, 0) AS balance
+FROM invoices i
+LEFT JOIN (SELECT invoice_id, sum(quantity * unit_price) AS subtotal FROM invoice_items GROUP BY invoice_id) it ON it.invoice_id = i.id
+LEFT JOIN (SELECT invoice_id, sum(amount) AS paid FROM transactions WHERE kind = 'income' GROUP BY invoice_id) pd ON pd.invoice_id = i.id;

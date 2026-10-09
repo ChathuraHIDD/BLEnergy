@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-base: #0b0a09;
+  --color-surface: #131110;
+  --color-surface-2: #1a1715;
+  --color-surface-3: #23201c;
+  --color-line: #2c2722;
+  --color-line-strong: #3a332b;
+
+  --color-brand: #f27d1f;
+  --color-brand-deep: #e4572e;
+  --color-gold: #f4bb2c;
+  --color-gold-soft: #d6a43a;
+
+  --color-txt: #f5eee4;
+  --color-muted: #a59b8d;
+  --color-dim: #6f675d;
+
+  --color-ok: #3ccf86;
+  --color-bad: #f45d5d;
+  --color-warn: #f4bb2c;
+  --color-info: #5aa9ff;
+
+  --animate-shake: shake 0.4s ease-in-out;
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+  }
+}
+
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-base text-txt font-sans antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 100% -10%, rgba(242, 125, 31, 0.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(244, 187, 44, 0.05), transparent 60%);
+    background-attachment: fixed;
+  }
+  ::selection { background: rgba(242, 125, 31, 0.35); }
+  * { scrollbar-width: thin; scrollbar-color: #3a332b transparent; }
+  input[type='date']::-webkit-calendar-picker-indicator { filter: invert(0.75) sepia(1) saturate(4) hue-rotate(-10deg); cursor: pointer; }
+  input[type='number']::-webkit-inner-spin-button { opacity: 0.4; }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface/80 backdrop-blur-sm;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px -18px rgba(0, 0, 0, 0.8);
+  }
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(90deg, var(--color-brand-deep), var(--color-brand) 40%, var(--color-gold));
+  }
+  .bg-brand-gradient { background-image: linear-gradient(120deg, var(--color-brand-deep), var(--color-brand) 45%, var(--color-gold)); }
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-txt placeholder:text-dim outline-none transition;
+    @apply focus:border-brand/70 focus:ring-4 focus:ring-brand/15 disabled:opacity-50;
+  }
+  .input-error { @apply border-bad/70 focus:border-bad focus:ring-bad/15; }
+  .label { @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase; }
+  .code { @apply font-mono text-[0.8em] font-semibold text-gold; }
+  .th { @apply px-4 py-3 text-left text-[11px] font-bold tracking-wider text-dim uppercase; }
+  .td { @apply px-4 py-3 text-sm; }
+}
