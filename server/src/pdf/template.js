@@ -137,7 +137,7 @@ export class BrandedPdf {
 
   section(title) {
     const { doc } = this;
-    this.ensureSpace(48);
+    this.ensureSpace(100); // keep the heading with at least a couple of lines of its content
     doc.moveDown(0.6);
     const y = doc.y;
     doc.rect(M.left, y, 3, 13).fill(C.orange);

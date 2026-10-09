@@ -64,7 +64,7 @@
   }
   .input-error { @apply border-bad/70 focus:border-bad focus:ring-bad/15; }
   .label { @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase; }
-  .code { @apply font-mono text-[0.8em] font-semibold text-gold; }
+  .code { @apply font-mono text-[0.8em] font-semibold whitespace-nowrap text-gold; }
   .th { @apply px-4 py-3 text-left text-[11px] font-bold tracking-wider text-dim uppercase; }
   .td { @apply px-4 py-3 text-sm; }
 }

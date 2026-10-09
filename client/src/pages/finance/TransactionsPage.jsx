@@ -85,7 +85,7 @@ export default function TransactionsPage({ preset }) {
         }
       />
       {data && (
-        <div className="mb-5 grid gap-4 sm:grid-cols-3">
+        <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cfg.fixed.kind !== 'expense' && <StatCard label="Income (filtered)" value={lkr(data.income)} icon={ArrowDownLeft} tone="ok" />}
           {cfg.fixed.kind !== 'income' && <StatCard label="Expenses (filtered)" value={lkr(data.expense)} icon={ArrowUpRight} tone="bad" delay={0.05} />}
           {!cfg.fixed.kind && <StatCard label="Net" value={lkr(data.income - data.expense)} icon={Scale} tone="gold" delay={0.1} />}

@@ -1,0 +1,16 @@
+{
+  "name": "blenergy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BatteryLab Energy (Pvt) Ltd – project, contractor and finance management system",
+  "scripts": {
+    "setup": "npm install && npm install --prefix server && npm install --prefix client",
+    "dev": "concurrently -n api,web -c yellow,magenta \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "start": "npm start --prefix server",
+    "db:migrate": "npm run db:migrate --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}
