@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
 import migrations from './migrations/index.js';
+import { connectionUrl } from './index.js';
 
 
 const LOCK_ID = 7_202_610; // any constant – serialises migrations across serverless instances
@@ -12,7 +13,7 @@ const LOCK_ID = 7_202_610; // any constant – serialises migrations across serv
  * and multi-statement DDL don't work through a transaction pooler.
  */
 export async function migrate() {
-  const client = new pg.Client({ connectionString: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL });
+  const client = new pg.Client({ connectionString: connectionUrl(process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL) });
   await client.connect();
   try {
     await client.query('SELECT pg_advisory_lock($1)', [LOCK_ID]);

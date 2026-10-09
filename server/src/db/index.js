@@ -8,8 +8,11 @@ pg.types.setTypeParser(20, (v) => (v === null ? null : parseInt(v, 10)));
 
 const onVercel = Boolean(process.env.VERCEL);
 
+/** Hosted providers hand out `sslmode=require`; pg treats it as verify-full but warns – make it explicit. */
+export const connectionUrl = (url) => url?.replace(/sslmode=(require|prefer|verify-ca)\b/, 'sslmode=verify-full');
+
 export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: connectionUrl(process.env.DATABASE_URL),
   // Serverless instances are many and short-lived: keep each pool small and use the provider's pooled URL.
   max: onVercel ? 3 : 10,
   idleTimeoutMillis: onVercel ? 10000 : 30000,
