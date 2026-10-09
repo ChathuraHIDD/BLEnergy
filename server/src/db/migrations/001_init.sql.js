@@ -1,4 +1,4 @@
--- BatteryLab Energy – initial schema
+export default `-- BatteryLab Energy – initial schema
 
 CREATE TABLE admins (
   id            SERIAL PRIMARY KEY,
@@ -223,3 +223,4 @@ SELECT i.id,
 FROM invoices i
 LEFT JOIN (SELECT invoice_id, sum(quantity * unit_price) AS subtotal FROM invoice_items GROUP BY invoice_id) it ON it.invoice_id = i.id
 LEFT JOIN (SELECT invoice_id, sum(amount) AS paid FROM transactions WHERE kind = 'income' GROUP BY invoice_id) pd ON pd.invoice_id = i.id;
+`;

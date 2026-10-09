@@ -65,7 +65,7 @@ export default function QuotationFormModal({ open, onClose, quotation, defaults 
       onClose={() => onClose()}
       icon={FileText}
       title={quotation ? `Edit quotation ${quotation.code}` : 'Upload quotation'}
-      subtitle="PDF or Word documents up to 15 MB"
+      subtitle="PDF or Word documents up to 4 MB"
       footer={
         <>
           <Button variant="secondary" onClick={() => onClose()}>Cancel</Button>

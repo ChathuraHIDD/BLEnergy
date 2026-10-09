@@ -6,10 +6,14 @@ pg.types.setTypeParser(1082, (v) => v);
 pg.types.setTypeParser(1700, (v) => (v === null ? null : parseFloat(v)));
 pg.types.setTypeParser(20, (v) => (v === null ? null : parseInt(v, 10)));
 
+const onVercel = Boolean(process.env.VERCEL);
+
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 10,
-  options: '-c timezone=Asia/Colombo',
+  // Serverless instances are many and short-lived: keep each pool small and use the provider's pooled URL.
+  max: onVercel ? 3 : 10,
+  idleTimeoutMillis: onVercel ? 10000 : 30000,
+  connectionTimeoutMillis: 10000,
 });
 
 export const query = (text, params) => pool.query(text, params);

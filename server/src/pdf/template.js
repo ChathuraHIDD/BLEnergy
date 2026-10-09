@@ -1,9 +1,7 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
+import LOGO from './logo.js';
 import { query } from '../db/index.js';
 
-const LOGO = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../assets/logo.png');
 
 export const C = {
   black: '#0B0B0B',

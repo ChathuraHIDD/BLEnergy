@@ -47,6 +47,18 @@ npm run build
 npm start
 ```
 
+## Deploying to Vercel
+
+The repo deploys as one Vercel project with two services (see `vercel.json`): the React app at `/` and the Express API at `/api`.
+
+1. **Database:** in the Vercel project → *Storage* → *Create Database* → **Neon (Postgres)**, region **Singapore** (closest to Sri Lanka), and connect it to the project. This adds `DATABASE_URL` and `DATABASE_URL_UNPOOLED` automatically.
+2. **Environment variables** (Settings → Environment Variables): `JWT_SECRET` (long random string), `JWT_EXPIRES_IN=12h`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`.
+3. **Function region:** Settings → Functions → region **Singapore (sin1)**, next to the database.
+4. Deploy. Tables and the admin account are created automatically on the first request.
+5. Sign in and **change the admin password** in Settings.
+
+Notes for the hosted version: uploads are limited to 4 MB per save (Vercel request limit), and reminders are generated while the app is in use (checked at most every 10 minutes) instead of by a background timer.
+
 ## Backups
 
 Everything lives in PostgreSQL, so one dump is a full backup:

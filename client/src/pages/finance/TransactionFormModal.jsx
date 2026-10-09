@@ -220,7 +220,7 @@ export default function TransactionFormModal({ open, onClose, txn, mode, default
               ))}
             </ul>
           )}
-          <FileDrop files={files} onChange={setFiles} multiple types={BILL_TYPES} accept=".pdf,.doc,.docx,image/*" hint="PDF, Word or image · up to 15 MB each" />
+          <FileDrop files={files} onChange={setFiles} multiple types={BILL_TYPES} accept=".pdf,.doc,.docx,image/*" hint="PDF, Word or image · up to 4 MB in total" />
         </div>
       </div>
     </Modal>

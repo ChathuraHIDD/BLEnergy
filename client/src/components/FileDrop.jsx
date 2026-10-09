@@ -4,7 +4,8 @@ import { FileText, ImageIcon, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { fileSize } from '../lib/format';
 
-const MAX = 15 * 1024 * 1024;
+// Uploads travel in one request, which the hosting platform caps at ~4.5 MB.
+const MAX = 4 * 1024 * 1024;
 
 export default function FileDrop({ files, onChange, accept, multiple = false, error, hint, types }) {
   const input = useRef(null);
@@ -12,15 +13,21 @@ export default function FileDrop({ files, onChange, accept, multiple = false, er
 
   const add = (list) => {
     const ok = [];
+    let total = multiple ? files.reduce((s, f) => s + f.size, 0) : 0;
     for (const f of list) {
       if (types && !types.includes(f.type)) {
         toast.error(`${f.name}: unsupported file type`);
         continue;
       }
       if (f.size > MAX) {
-        toast.error(`${f.name} is larger than 15 MB`);
+        toast.error(`${f.name} is larger than 4 MB – please compress or scan at a lower resolution`);
         continue;
       }
+      if (total + f.size > MAX) {
+        toast.error(`${f.name} not added – attachments together must be under 4 MB`);
+        continue;
+      }
+      total += f.size;
       ok.push(f);
     }
     if (!ok.length) return;

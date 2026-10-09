@@ -11,7 +11,8 @@ const IMAGES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
 const make = (allowed, label) =>
   multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 15 * 1024 * 1024, files: 10 },
+    // Vercel rejects request bodies over 4.5 MB, so keep uploads (all files together) below that.
+    limits: { fileSize: 4 * 1024 * 1024, files: 10 },
     fileFilter: (req, file, cb) => {
       if (allowed.has(file.mimetype)) return cb(null, true);
       cb(new HttpError(400, `${file.originalname}: only ${label} files are allowed`));
