@@ -8,7 +8,7 @@ import {
   HardHat, Mail, MapPin, Pencil, Phone, Plus, Printer, Receipt, Save, ShieldCheck, Sun, Trash2, Wallet, Wrench, XCircle, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage } from '../../lib/api';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { daysLabel, fmtDate, fmtDateTime, lkr, today } from '../../lib/format';
 import { categoryLabel, COMPONENT_TYPES, INVOICE_STATUS, PROJECT_STATUSES, QUOTATION_STATUS, statusOf } from '../../lib/constants';
 import { openDocument, openFile } from '../../lib/docs';
@@ -47,15 +47,13 @@ export default function ProjectDetailPage() {
 
   const invalidate = () => ['project', 'projects', 'dashboard', 'finance', 'transactions', 'notifications', 'upcoming', 'contractor'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
 
-  const del = useMutation({
-    mutationFn: () => api.delete(`/projects/${id}`),
-    onSuccess: (r) => {
-      toast.success(r.data.message);
-      invalidate();
-      navigate('/projects');
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
+  const deleteProject = async (code) => {
+    const r = await deleteWithCode(`/projects/${id}`, code);
+    toast.success(r.data.message);
+    ['invoices', 'quotations', 'contractors'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    invalidate();
+    navigate('/projects');
+  };
   const status = useMutation({
     mutationFn: (s) => api.patch(`/projects/${id}/status`, { status: s }),
     onSuccess: () => {
@@ -64,15 +62,11 @@ export default function ProjectDetailPage() {
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
-  const delTxn = useMutation({
-    mutationFn: (t) => api.delete(`/transactions/${t.id}`),
-    onSuccess: () => {
-      toast.success('Transaction deleted');
-      setDeleteTxn(null);
-      invalidate();
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
+  const deleteTransaction = async (code) => {
+    await deleteWithCode(`/transactions/${deleteTxn.id}`, code);
+    toast.success(`${deleteTxn.code} permanently deleted`);
+    invalidate();
+  };
 
   if (isLoading) return <PageLoader />;
   if (error) return <ErrorState message={errorMessage(error)} onRetry={refetch} />;
@@ -324,19 +318,22 @@ export default function ProjectDetailPage() {
       <ConfirmDialog
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        onConfirm={() => del.mutate()}
-        loading={del.isPending}
-        title={`Delete ${p.code}?`}
-        message="This permanently removes the project with its components, wiring and service schedule. Linked payments, invoices and quotations are kept but unlinked from the project. This cannot be undone."
-        confirmLabel="Delete project"
+        onConfirm={deleteProject}
+        title={`Delete project ${p.code}?`}
+        message={`"${p.title}" for ${p.customer_name} and everything recorded under it will be removed:`}
+        details={[
+          `${p.components.length} component(s), ${p.wiring.length} wiring item(s), ${p.services.length} service date(s)`,
+          `${p.transactions.length} payment / expense record(s) with their bills`,
+          `${p.invoices.length} invoice(s) and ${p.quotations.length} quotation(s) with files`,
+          'Service agreement and notifications',
+        ]}
       />
       <ConfirmDialog
         open={Boolean(deleteTxn)}
         onClose={() => setDeleteTxn(null)}
-        onConfirm={() => delTxn.mutate(deleteTxn)}
-        loading={delTxn.isPending}
+        onConfirm={deleteTransaction}
         title={`Delete ${deleteTxn?.code}?`}
-        message="This removes the transaction and its attached bills from all finance records."
+        message="This record and its attached bills will be removed from all finance records and statements."
       />
       <TransactionFormModal open={Boolean(txnModal)} onClose={() => setTxnModal(null)} mode={txnModal?.mode} txn={txnModal?.txn} defaults={txnModal?.defaults} />
       <InvoiceFormModal open={Boolean(invoiceModal)} onClose={() => setInvoiceModal(null)} defaults={invoiceModal?.defaults} />
@@ -376,15 +373,10 @@ function ServiceTab({ project: p, onChanged }) {
     }
   };
 
-  const remove = async () => {
-    try {
-      await api.delete(`/projects/${p.id}/services/${removing.id}`);
-      toast.success('Service removed');
-      setRemoving(null);
-      onChanged();
-    } catch (e) {
-      toast.error(errorMessage(e));
-    }
+  const remove = async (code) => {
+    await deleteWithCode(`/projects/${p.id}/services/${removing.id}`, code);
+    toast.success('Service removed');
+    onChanged();
   };
 
   return (
@@ -429,7 +421,7 @@ function ServiceTab({ project: p, onChanged }) {
         )}
       </Card>
       <ServiceModal open={Boolean(modal)} service={modal?.service} projectId={p.id} onClose={(saved) => { setModal(null); if (saved) onChanged(); }} />
-      <ConfirmDialog open={Boolean(removing)} onClose={() => setRemoving(null)} onConfirm={remove} title="Remove service?" message={`Remove "${removing?.title}" on ${fmtDate(removing?.service_date)}?`} confirmLabel="Remove" />
+      <ConfirmDialog open={Boolean(removing)} onClose={() => setRemoving(null)} onConfirm={remove} title="Remove service?" message={`"${removing?.title}" on ${fmtDate(removing?.service_date)} and its reminders will be removed.`} />
     </div>
   );
 }

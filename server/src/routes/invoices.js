@@ -135,11 +135,11 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const id = idParam(req);
-  const { rows: paid } = await query('SELECT count(*) AS n FROM transactions WHERE invoice_id = $1', [id]);
-  if (paid[0].n > 0) throw new HttpError(409, 'This invoice has payments recorded. Cancel it instead of deleting');
+  // Payments recorded against the invoice are kept on the project (they are real money received), only unlinked.
   const { rows } = await query('DELETE FROM invoices WHERE id = $1 RETURNING code', [id]);
   if (!rows[0]) throw notFound('Invoice');
-  res.json({ message: `Invoice ${rows[0].code} deleted` });
+  await query(`DELETE FROM notifications WHERE source_type = 'invoice' AND source_id = $1`, [id]);
+  res.json({ message: `Invoice ${rows[0].code} permanently deleted` });
 });
 
 router.get('/:id/pdf', async (req, res) => {

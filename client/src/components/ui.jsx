@@ -1,8 +1,10 @@
-import { forwardRef, useEffect, useId } from 'react';
+import { forwardRef, useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import clsx from 'clsx';
-import { AlertCircle, ChevronDown, Download, Inbox, Loader2, Printer, X, Eye } from 'lucide-react';
+import { AlertCircle, ChevronDown, Download, Inbox, Loader2, Printer, Trash2, X, Eye } from 'lucide-react';
+import { toast } from 'sonner';
+import { errorMessage } from '../lib/api';
 import { openDocument } from '../lib/docs';
 
 // ---------------------------------------------------------------- Button
@@ -336,26 +338,93 @@ export function Modal({ open, onClose, title, subtitle, icon: Icon, children, fo
   );
 }
 
-export function ConfirmDialog({ open, onClose, onConfirm, title, message, confirmLabel = 'Delete', loading, tone = 'danger' }) {
+/**
+ * Permanent-delete confirmation. Requires the company delete code; `onConfirm(code)` must
+ * return a promise – a wrong code keeps the dialog open with an inline error.
+ */
+export function ConfirmDialog({ open, onClose, onConfirm, title, message, details = [], confirmLabel = 'Delete permanently', requireCode = true }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [shake, setShake] = useState(0);
+  useEffect(() => {
+    if (open) {
+      setCode('');
+      setError('');
+    }
+  }, [open]);
+
+  const fail = (msg) => {
+    setError(msg);
+    setShake((n) => n + 1);
+  };
+  const submit = async () => {
+    if (requireCode && !code.trim()) return fail('Enter the delete code to continue');
+    setBusy(true);
+    try {
+      await onConfirm(code.trim());
+      onClose();
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 403 || status === 429) fail(err.response.data?.fields?.delete_code || errorMessage(err));
+      else {
+        toast.error(errorMessage(err, 'Delete failed'));
+        onClose();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={busy ? undefined : onClose}
       title={title}
       size="sm"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button variant={tone} onClick={onConfirm} loading={loading}>{confirmLabel}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="danger" icon={Trash2} onClick={submit} loading={busy}>{confirmLabel}</Button>
         </>
       }
     >
-      <div className="flex gap-4">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-bad/15 text-bad">
-          <AlertCircle className="h-5 w-5" />
+      <motion.div key={shake} animate={shake ? { x: [0, -8, 8, -5, 5, 0] } : {}} transition={{ duration: 0.35 }}>
+        <div className="flex gap-3 rounded-xl border border-bad/30 bg-bad/10 p-4">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-bad" />
+          <div className="text-sm">
+            <p className="font-bold text-bad">This will be permanently deleted</p>
+            <p className="mt-1 text-muted">{message}</p>
+            {details.length > 0 && (
+              <ul className="mt-2 list-disc space-y-0.5 pl-4 text-muted">
+                {details.map((d) => <li key={d}>{d}</li>)}
+              </ul>
+            )}
+            <p className="mt-2 font-semibold text-txt">This cannot be undone.</p>
+          </div>
         </div>
-        <p className="pt-2 text-sm text-muted">{message}</p>
-      </div>
+        {requireCode && (
+          <div className="mt-4">
+            <label className="label">Delete code <span className="text-brand">*</span></label>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              maxLength={12}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setError('');
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              placeholder="Enter the delete code"
+              className={clsx('input text-center font-mono text-lg tracking-[0.5em]', error && 'input-error')}
+            />
+            <FieldError error={error} />
+          </div>
+        )}
+      </motion.div>
     </Modal>
   );
 }

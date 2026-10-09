@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { migrate } from './db/migrate.js';
 import { requireAuth } from './middleware/auth.js';
+import { requireDeleteCode } from './middleware/deleteCode.js';
 import { errorHandler } from './utils/errors.js';
 import { generateNotifications, startNotificationScheduler } from './services/notifications.js';
 import authRoutes from './routes/auth.js';
@@ -66,6 +67,7 @@ app.use('/api', async (req, res, next) => {
 });
 app.use('/api/auth', authRoutes);
 app.use('/api', requireAuth);
+app.use('/api', requireDeleteCode);
 app.use('/api/projects', projectRoutes);
 app.use('/api/contractors', contractorRoutes);
 app.use('/api/transactions', transactionRoutes);

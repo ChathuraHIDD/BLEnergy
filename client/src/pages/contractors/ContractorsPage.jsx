@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Building2, FolderKanban, HardHat, Phone, Plus, Users } from 'lucide-react';
-import { api, errorMessage } from '../../lib/api';
+import { Building2, FolderKanban, HardHat, Phone, Plus, Trash2, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { lkr } from '../../lib/format';
 import { clean, useUrlFilters } from '../../lib/useUrlFilters';
-import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from '../../components/ui';
+import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Skeleton } from '../../components/ui';
 import FilterBar from '../../components/FilterBar';
 import ContractorFormModal from './ContractorFormModal';
 
@@ -17,6 +18,13 @@ export default function ContractorsPage() {
   const [params, setParams] = useSearchParams();
   const [filters, setFilters] = useUrlFilters(KEYS);
   const [modal, setModal] = useState(false);
+  const [toDelete, setToDelete] = useState(null);
+  const qc = useQueryClient();
+  const deleteContractor = async (code) => {
+    const r = await deleteWithCode(`/contractors/${toDelete.id}`, code);
+    toast.success(r.data.message);
+    ['contractors', 'contractor', 'projects', 'project', 'finance', 'transactions', 'dashboard'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  };
   useEffect(() => {
     if (params.get('new')) {
       setModal(true);
@@ -54,8 +62,16 @@ export default function ContractorsPage() {
                   transition={{ delay: Math.min(i * 0.04, 0.4) }}
                   whileHover={{ y: -4 }}
                   onClick={() => navigate(`/contractors/${c.id}`)}
-                  className="card group p-5 text-left transition-colors hover:border-brand/40"
+                  className="card group relative p-5 text-left transition-colors hover:border-brand/40"
                 >
+                  <span
+                    role="button"
+                    title="Delete contractor"
+                    onClick={(e) => { e.stopPropagation(); setToDelete(c); }}
+                    className="absolute -top-2 -right-2 z-10 grid h-8 w-8 place-items-center rounded-full border border-line-strong bg-surface-2 text-dim opacity-0 shadow-lg transition group-hover:opacity-100 hover:border-bad/50 hover:bg-bad/15 hover:text-bad"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </span>
                   <div className="flex items-start gap-4">
                     <div className="bg-brand-gradient grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-lg font-extrabold text-black">
                       {c.name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
@@ -79,6 +95,14 @@ export default function ContractorsPage() {
               ))}
             </div>
           )}
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onClose={() => setToDelete(null)}
+        onConfirm={deleteContractor}
+        title={`Delete contractor ${toDelete?.code}?`}
+        message={`${toDelete?.name} and all records under them will be removed:`}
+        details={[`All payments made to them with bills (${toDelete ? lkr(toDelete.total_paid) : ''})`, `Removed from ${toDelete?.project_count ?? 0} project(s) – the projects themselves are kept`]}
+      />
       <ContractorFormModal open={modal} onClose={() => setModal(false)} onSaved={(c) => navigate(`/contractors/${c.id}`)} />
     </div>
   );

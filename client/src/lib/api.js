@@ -40,6 +40,9 @@ export function errorMessage(err, fallback = 'Something went wrong') {
 
 export const fieldErrors = (err) => err?.response?.data?.fields || {};
 
+/** Permanent delete – the server requires the company delete code. */
+export const deleteWithCode = (url, code) => api.delete(url, { headers: { 'X-Delete-Code': code } });
+
 /** Convert a plain object to FormData (arrays → repeated keys, null/undefined skipped). */
 export function toFormData(values, files = {}) {
   const fd = new FormData();

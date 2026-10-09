@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownLeft, ArrowUpRight, Download, HardHat, Plus, Printer, Receipt, Scale } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage } from '../../lib/api';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { lkr } from '../../lib/format';
 import { CONTRACTOR_PAYMENT, PAYMENT_METHODS, PROJECT_PAYMENT } from '../../lib/constants';
 import { openDocument } from '../../lib/docs';
@@ -44,15 +44,11 @@ export default function TransactionsPage({ preset }) {
   const { data: projects = [] } = useQuery({ queryKey: ['projects', 'options'], queryFn: () => api.get('/projects/options').then((r) => r.data) });
   const { data: contractors = [] } = useQuery({ queryKey: ['contractors', 'all'], queryFn: () => api.get('/contractors').then((r) => r.data) });
 
-  const del = useMutation({
-    mutationFn: (t) => api.delete(`/transactions/${t.id}`),
-    onSuccess: () => {
-      toast.success('Transaction deleted');
-      setToDelete(null);
-      ['transactions', 'finance', 'dashboard', 'project', 'contractor', 'invoices'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
+  const deleteItem = async (code) => {
+    await deleteWithCode(`/transactions/${toDelete.id}`, code);
+    toast.success(`${toDelete.code} permanently deleted`);
+    ['transactions', 'finance', 'dashboard', 'project', 'contractor', 'invoices'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  };
 
   const selects = useMemo(() => {
     const s = [];
@@ -106,8 +102,8 @@ export default function TransactionsPage({ preset }) {
             )}
       </Card>
       <TransactionFormModal open={Boolean(modal)} onClose={() => setModal(null)} mode={modal?.mode} txn={modal?.txn} />
-      <ConfirmDialog open={Boolean(toDelete)} onClose={() => setToDelete(null)} onConfirm={() => del.mutate(toDelete)} loading={del.isPending}
-        title={`Delete ${toDelete?.code}?`} message="This removes the record and its attached bills from all finance reports. This cannot be undone." />
+      <ConfirmDialog open={Boolean(toDelete)} onClose={() => setToDelete(null)} onConfirm={deleteItem}
+        title={`Delete ${toDelete?.code}?`} message="This record and its attached bills will be removed from all finance records and statements." />
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Eye, FileText, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage } from '../../lib/api';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { fileSize, fmtDate, lkr } from '../../lib/format';
 import { QUOTATION_STATUS } from '../../lib/constants';
 import { openFile } from '../../lib/docs';
@@ -24,16 +24,11 @@ export default function QuotationsPage() {
     queryFn: () => api.get('/quotations', { params: clean(filters) }).then((r) => r.data),
     placeholderData: keepPreviousData,
   });
-  const del = useMutation({
-    mutationFn: (q) => api.delete(`/quotations/${q.id}`),
-    onSuccess: () => {
-      toast.success('Quotation deleted');
-      setToDelete(null);
-      qc.invalidateQueries({ queryKey: ['quotations'] });
-      qc.invalidateQueries({ queryKey: ['project'] });
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
+  const deleteItem = async (code) => {
+    await deleteWithCode(`/quotations/${toDelete.id}`, code);
+    toast.success(`${toDelete.code} permanently deleted`);
+    ['quotations', 'project'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  };
 
   return (
     <div>
@@ -78,8 +73,8 @@ export default function QuotationsPage() {
               )}
       </Card>
       <QuotationFormModal open={Boolean(modal)} onClose={() => setModal(null)} quotation={modal?.quotation} />
-      <ConfirmDialog open={Boolean(toDelete)} onClose={() => setToDelete(null)} onConfirm={() => del.mutate(toDelete)} loading={del.isPending}
-        title={`Delete ${toDelete?.code}?`} message="The quotation and its uploaded file will be permanently deleted." />
+      <ConfirmDialog open={Boolean(toDelete)} onClose={() => setToDelete(null)} onConfirm={deleteItem}
+        title={`Delete ${toDelete?.code}?`} message="The quotation and its uploaded file will be removed." />
     </div>
   );
 }

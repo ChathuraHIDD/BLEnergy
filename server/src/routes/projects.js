@@ -271,11 +271,29 @@ router.patch('/:id/status', async (req, res) => {
   res.json({ message: 'Status updated' });
 });
 
+// Permanently deletes the project and everything under it: components, wiring, services,
+// payments/expenses (with bills), invoices, quotations (with files) and its notifications.
 router.delete('/:id', async (req, res) => {
   const id = idParam(req);
-  const { rows } = await query('DELETE FROM projects WHERE id = $1 RETURNING code', [id]);
-  if (!rows[0]) throw notFound('Project');
-  res.json({ message: `Project ${rows[0].code} deleted` });
+  const code = await withTransaction(async (client) => {
+    const { rows: files } = await client.query(
+      `SELECT tf.file_id FROM transaction_files tf JOIN transactions t ON t.id = tf.transaction_id WHERE t.project_id = $1
+       UNION SELECT file_id FROM quotations WHERE project_id = $1 AND file_id IS NOT NULL`,
+      [id],
+    );
+    await client.query(
+      `DELETE FROM notifications WHERE source_type = 'invoice' AND source_id IN (SELECT id FROM invoices WHERE project_id = $1)`,
+      [id],
+    );
+    await client.query('DELETE FROM transactions WHERE project_id = $1 OR invoice_id IN (SELECT id FROM invoices WHERE project_id = $1)', [id]);
+    await client.query('DELETE FROM invoices WHERE project_id = $1', [id]);
+    await client.query('DELETE FROM quotations WHERE project_id = $1', [id]);
+    const { rows } = await client.query('DELETE FROM projects WHERE id = $1 RETURNING code', [id]);
+    if (!rows[0]) throw notFound('Project');
+    if (files.length) await client.query('DELETE FROM files WHERE id = ANY($1)', [files.map((f) => f.file_id)]);
+    return rows[0].code;
+  });
+  res.json({ message: `Project ${code} and all its records were permanently deleted` });
 });
 
 // ---------------------------------------------------------------- service agreement + schedule

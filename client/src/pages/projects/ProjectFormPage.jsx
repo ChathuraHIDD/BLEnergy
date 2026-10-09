@@ -5,19 +5,19 @@ import { AnimatePresence, motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import clsx from 'clsx';
 import {
-  AlertCircle, ArrowLeft, BatteryCharging, Cable, CalendarPlus, FileSignature, Phone, Plus, Save, Sun, Trash2, UserRound, Wrench, Zap, ClipboardList,
+  AlertCircle, ArrowLeft, ShieldCheck, BatteryCharging, Cable, CalendarPlus, FileSignature, Phone, Plus, Save, Sun, Trash2, UserRound, Wrench, Zap, ClipboardList,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, errorMessage, fieldErrors } from '../../lib/api';
 import { fmtDate, lkr } from '../../lib/format';
-import { COMPONENT_TYPES, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../lib/constants';
+import { COMPONENT_TYPES, parseSize, PROJECT_CATEGORIES, PROJECT_STATUSES } from '../../lib/constants';
 import { rules } from '../../lib/useForm';
 import { Button, Card, CardHeader, ErrorState, Field, FieldError, Input, PageHeader, PageLoader, Select, Tabs, Textarea } from '../../components/ui';
 import Combobox from '../../components/Combobox';
 import ContractorFormModal from '../contractors/ContractorFormModal';
 
 const ICONS = { solar_panel: Sun, inverter: Zap, battery: BatteryCharging };
-const newComponent = () => ({ brand: '', model: '', size: '', quantity: 1, warranty_years: '', warranty_expiry: '', serial_numbers: '' });
+const newComponent = (type) => ({ brand: '', model: '', size: '', unit: COMPONENT_TYPES.find((t) => t.value === type).units[0], quantity: 1, warranty_years: '', serial_numbers: '' });
 const newWire = () => ({ brand: '', wire_type: '', size: '', length: '', notes: '' });
 const newService = () => ({ service_date: '', title: '', notes: '' });
 
@@ -73,8 +73,8 @@ export default function ProjectFormPage() {
     if (!p) return;
     const comps = { solar_panel: [], inverter: [], battery: [] };
     p.components.forEach((c) => comps[c.component_type].push({
-      brand: c.brand, model: c.model || '', size: c.size, quantity: c.quantity, warranty_years: String(c.warranty_years),
-      warranty_expiry: c.warranty_expiry || '', serial_numbers: c.serial_numbers || '',
+      brand: c.brand, model: c.model || '', ...(({ num, unit }) => ({ size: num, unit }))(parseSize(c.size, c.component_type)),
+      quantity: c.quantity, warranty_years: String(c.warranty_years), serial_numbers: c.serial_numbers || '',
     }));
     setV({
       customer_name: p.customer_name, customer_address: p.customer_address,
@@ -130,7 +130,7 @@ export default function ProjectFormPage() {
       v.components[type].forEach((c, i) => {
         const k = `${type}.${i}`;
         e[`${k}.brand`] = rules.required(c.brand, 'Brand');
-        e[`${k}.size`] = rules.required(c.size, 'Size');
+        e[`${k}.size`] = rules.required(c.size, 'Size') || (!(Number(c.size) > 0) ? 'Enter the size as a number greater than 0' : null);
         const q = Number(c.quantity);
         e[`${k}.quantity`] = !Number.isInteger(q) || q < 1 ? 'Quantity must be 1 or more' : null;
         const w = Number(c.warranty_years);
@@ -150,7 +150,7 @@ export default function ProjectFormPage() {
     return clean;
   };
 
-  const tabHasError = (t) => Object.keys(errors).some((k) => k.startsWith(`${t}.`) || (t === 'wiring' && k === 'wiring_contractor_id') || (t === 'agreement' && k.startsWith('services.')));
+  const tabHasError = (t) => Object.keys(errors).some((k) => errors[k] && k.startsWith(`${t}.`) || (t === 'wiring' && k === 'wiring_contractor_id') || (t === 'agreement' && k.startsWith('services.')));
 
   const submit = async () => {
     const errs = validate();
@@ -166,7 +166,8 @@ export default function ProjectFormPage() {
       ...v,
       customer_phones: v.customer_phones.map((p) => p.trim()).filter(Boolean),
       contract_value: v.contract_value === '' ? 0 : v.contract_value,
-      components: COMPONENT_TYPES.flatMap(({ value: type }) => v.components[type].map((c) => ({ ...c, component_type: type }))),
+      // Size is stored with its unit ("10 kWh"); warranty expiry is always calculated by the server from the years.
+      components: COMPONENT_TYPES.flatMap(({ value: type }) => v.components[type].map(({ unit, ...c }) => ({ ...c, size: `${Number(c.size)} ${unit}`, component_type: type }))),
       services: isEdit ? undefined : v.services,
     };
     setSaving(true);
@@ -199,6 +200,7 @@ export default function ProjectFormPage() {
   ].map((t) => ({ ...t, label: tabHasError(t.value) ? <span className="flex items-center gap-1.5">{t.label}<AlertCircle className="h-3.5 w-3.5 text-bad" /></span> : t.label }));
 
   const totalValue = Number(v.contract_value || 0);
+  const errorCount = Object.values(errors).filter(Boolean).length;
 
   return (
     <div className="pb-24">
@@ -301,7 +303,7 @@ export default function ProjectFormPage() {
                     brands={catalog[tab] || []}
                     baseDate={baseDate}
                     onChange={(i, k, val) => setComp(tab, i, k, val)}
-                    onAdd={() => setV((s) => ({ ...s, components: { ...s.components, [tab]: [...s.components[tab], newComponent()] } }))}
+                    onAdd={() => setV((s) => ({ ...s, components: { ...s.components, [tab]: [...s.components[tab], newComponent(tab)] } }))}
                     onRemove={(i) => setV((s) => ({ ...s, components: { ...s.components, [tab]: s.components[tab].filter((_, j) => j !== i) } }))}
                   />
                 )}
@@ -386,7 +388,7 @@ export default function ProjectFormPage() {
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-3 px-4 py-3 md:px-8">
           <p className="hidden text-sm text-muted sm:block">
             {COMPONENT_TYPES.reduce((n, t) => n + v.components[t.value].length, 0)} components · {v.wiring.length} wiring items
-            {Object.keys(errors).length > 0 && <span className="ml-3 font-semibold text-bad">{Object.keys(errors).length} field(s) need attention</span>}
+            {errorCount > 0 && <span className="ml-3 font-semibold text-bad">{errorCount} field(s) need attention</span>}
           </p>
           <div className="ml-auto flex gap-2">
             <Button variant="secondary" onClick={() => navigate(-1)} disabled={saving}>Cancel</Button>
@@ -421,7 +423,7 @@ function ComponentRows({ type, rows, errors, brands, baseDate, onChange, onAdd, 
       )}
       <AnimatePresence initial={false}>
         {rows.map((c, i) => {
-          const expiry = c.warranty_expiry || addYears(baseDate, c.warranty_years);
+          const expiry = addYears(baseDate, c.warranty_years);
           return (
             <motion.div key={i} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} className="rounded-2xl border border-line bg-surface-2/60 p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -434,7 +436,29 @@ function ComponentRows({ type, rows, errors, brands, baseDate, onChange, onAdd, 
                 </Field>
                 <Field label="Model"><Input value={c.model} onChange={(e) => onChange(i, 'model', e.target.value)} placeholder="Optional" /></Field>
                 <Field label="Size" required error={err(i, 'size')}>
-                  <Input value={c.size} error={err(i, 'size')} onChange={(e) => onChange(i, 'size', e.target.value)} placeholder={type.sizeHint} />
+                  <div className="flex">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      value={c.size}
+                      onChange={(e) => onChange(i, 'size', e.target.value)}
+                      placeholder={type.sizeHint}
+                      className={clsx('input !rounded-r-none', err(i, 'size') && 'input-error')}
+                    />
+                    {type.units.length > 1 ? (
+                      <select
+                        value={c.unit}
+                        onChange={(e) => onChange(i, 'unit', e.target.value)}
+                        className="cursor-pointer rounded-r-xl border border-l-0 border-line bg-surface-3 px-3 text-sm font-bold text-gold outline-none focus:border-brand/70"
+                      >
+                        {type.units.map((u) => <option key={u} value={u} className="bg-surface-2 text-txt">{u}</option>)}
+                      </select>
+                    ) : (
+                      <span className="grid place-items-center rounded-r-xl border border-l-0 border-line bg-surface-3 px-3.5 text-sm font-bold text-gold">{type.units[0]}</span>
+                    )}
+                  </div>
                 </Field>
                 <Field label="Quantity" required error={err(i, 'quantity')}>
                   <Input type="number" min="1" step="1" value={c.quantity} error={err(i, 'quantity')} onChange={(e) => onChange(i, 'quantity', e.target.value)} />
@@ -442,8 +466,11 @@ function ComponentRows({ type, rows, errors, brands, baseDate, onChange, onAdd, 
                 <Field label="Warranty (years)" required error={err(i, 'warranty_years')}>
                   <Input type="number" min="0" max="99" step="0.5" value={c.warranty_years} error={err(i, 'warranty_years')} onChange={(e) => onChange(i, 'warranty_years', e.target.value)} placeholder="e.g. 10" />
                 </Field>
-                <Field label="Warranty expiry" hint={c.warranty_expiry ? 'Custom date' : expiry ? `Auto: ${fmtDate(expiry)}` : 'Auto-calculated'}>
-                  <Input type="date" value={c.warranty_expiry} onChange={(e) => onChange(i, 'warranty_expiry', e.target.value)} />
+                <Field label="Warranty expiry" hint={`Calculated from ${fmtDate(baseDate)}`}>
+                  <div className={clsx('flex h-[42px] items-center gap-2 rounded-xl border px-3.5 text-sm font-bold', expiry ? 'border-gold/30 bg-gold/10 text-gold' : 'border-line bg-surface-2 text-dim')}>
+                    <ShieldCheck className="h-4 w-4 shrink-0" />
+                    {expiry ? fmtDate(expiry) : 'Enter warranty years'}
+                  </div>
                 </Field>
                 <Field label="Serial numbers" className="sm:col-span-2">
                   <Input value={c.serial_numbers} onChange={(e) => onChange(i, 'serial_numbers', e.target.value)} placeholder="Optional, comma separated" />

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Building2, FolderKanban, HardHat, Mail, MapPin, Pencil, Phone, Plus, Trash2, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage } from '../../lib/api';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { fmtDate, lkr } from '../../lib/format';
 import { categoryLabel, statusOf } from '../../lib/constants';
 import { Badge, Button, Card, CardHeader, ConfirmDialog, DocActions, EmptyState, ErrorState, InfoItem, PageHeader, PageLoader, Row, StatCard, Table } from '../../components/ui';
@@ -21,27 +21,18 @@ export default function ContractorDetailPage() {
   const [delTxn, setDelTxn] = useState(null);
 
   const { data: c, isLoading, error, refetch } = useQuery({ queryKey: ['contractor', id], queryFn: () => api.get(`/contractors/${id}`).then((r) => r.data) });
-  const del = useMutation({
-    mutationFn: () => api.delete(`/contractors/${id}`),
-    onSuccess: () => {
-      toast.success('Contractor deleted');
-      qc.invalidateQueries({ queryKey: ['contractors'] });
-      navigate('/contractors');
-    },
-    onError: (e) => {
-      setConfirm(false);
-      toast.error(errorMessage(e));
-    },
-  });
-  const removeTxn = useMutation({
-    mutationFn: (t) => api.delete(`/transactions/${t.id}`),
-    onSuccess: () => {
-      toast.success('Payment deleted');
-      setDelTxn(null);
-      ['contractor', 'contractors', 'finance', 'transactions', 'project', 'dashboard'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-    },
-    onError: (e) => toast.error(errorMessage(e)),
-  });
+  const refresh = () => ['contractor', 'contractors', 'finance', 'transactions', 'project', 'projects', 'dashboard'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  const deleteContractor = async (code) => {
+    const r = await deleteWithCode(`/contractors/${id}`, code);
+    toast.success(r.data.message);
+    refresh();
+    navigate('/contractors');
+  };
+  const deletePayment = async (code) => {
+    await deleteWithCode(`/transactions/${delTxn.id}`, code);
+    toast.success(`${delTxn.code} permanently deleted`);
+    refresh();
+  };
 
   if (isLoading) return <PageLoader />;
   if (error) return <ErrorState message={errorMessage(error)} onRetry={refetch} />;
@@ -115,9 +106,10 @@ export default function ContractorDetailPage() {
 
       <ContractorFormModal open={edit} onClose={() => setEdit(false)} contractor={c} />
       <TransactionFormModal open={Boolean(pay)} onClose={() => setPay(null)} mode={pay?.mode} txn={pay?.txn} defaults={pay?.defaults} />
-      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} onConfirm={() => del.mutate()} loading={del.isPending} title={`Delete ${c.code}?`}
-        message="Contractors with projects or payments cannot be deleted – mark them inactive instead. This cannot be undone." />
-      <ConfirmDialog open={Boolean(delTxn)} onClose={() => setDelTxn(null)} onConfirm={() => removeTxn.mutate(delTxn)} loading={removeTxn.isPending} title={`Delete ${delTxn?.code}?`} message="This payment will be removed from all finance records." />
+      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} onConfirm={deleteContractor} title={`Delete contractor ${c.code}?`}
+        message={`${c.name} and all records under them will be removed:`}
+        details={[`${c.payments.length} payment record(s) with bills (${lkr(c.total_paid)})`, `Removed as wiring contractor from ${c.projects.length} project(s) – the projects themselves are kept`]} />
+      <ConfirmDialog open={Boolean(delTxn)} onClose={() => setDelTxn(null)} onConfirm={deletePayment} title={`Delete ${delTxn?.code}?`} message="This payment and its bills will be removed from all finance records." />
     </div>
   );
 }

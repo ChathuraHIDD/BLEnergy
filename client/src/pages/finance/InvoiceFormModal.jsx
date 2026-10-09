@@ -1,15 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { FileSpreadsheet, Plus, Save, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, PackagePlus, Plus, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import dayjs from 'dayjs';
-import { api } from '../../lib/api';
+import { api, errorMessage } from '../../lib/api';
 import { lkr, today } from '../../lib/format';
 import { rules, useForm } from '../../lib/useForm';
+import { COMPONENT_TYPES } from '../../lib/constants';
 import { Button, Field, FieldError, Input, Modal, Select, Textarea } from '../../components/ui';
 
 const newItem = () => ({ description: '', quantity: '1', unit_price: '' });
+
+/** One invoice line per component and wiring item recorded on the project (prices are filled in by the user). */
+function projectLines(p) {
+  const names = Object.fromEntries(COMPONENT_TYPES.map((t) => [t.value, t.single]));
+  return [
+    ...p.components.map((c) => ({
+      description: `${names[c.component_type]} – ${c.brand}${c.model ? ` ${c.model}` : ''} ${c.size} (${c.warranty_years} yr warranty)`,
+      quantity: String(c.quantity),
+      unit_price: '',
+      auto: true,
+    })),
+    ...p.wiring.map((w) => ({
+      description: `Wiring – ${w.brand} ${w.wire_type}${w.size ? ` ${w.size}` : ''}${w.length ? ` (${w.length})` : ''}`,
+      quantity: '1',
+      unit_price: '',
+      auto: true,
+    })),
+  ];
+}
 const blank = () => ({
   project_id: '', customer_name: '', customer_address: '', customer_phone: '', issue_date: today(),
   due_date: dayjs().add(14, 'day').format('YYYY-MM-DD'), discount: '', tax_rate: '', notes: '', status: 'issued', items: [newItem()],
@@ -21,6 +41,28 @@ export default function InvoiceFormModal({ open, onClose, invoice, defaults = {}
   const { values: v, setValue, setValues, bind, check, serverError, errors, setErrors } = form;
   const [saving, setSaving] = useState(false);
   const { data: projects = [] } = useQuery({ queryKey: ['projects', 'options'], queryFn: () => api.get('/projects/options').then((r) => r.data), enabled: open });
+
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  /** Replace previously imported project lines (keeping manual lines) with the project's current items. */
+  const importProjectItems = async (pid, { quiet = false } = {}) => {
+    if (!pid) return;
+    setLoadingItems(true);
+    try {
+      const { data: p } = await api.get(`/projects/${pid}`);
+      const lines = projectLines(p);
+      setValues((s) => {
+        const manual = s.items.filter((it) => !it.auto && it.description.trim());
+        const items = [...lines, ...manual];
+        return { ...s, items: items.length ? items : [newItem()] };
+      });
+      if (!quiet) toast.success(lines.length ? `${lines.length} item(s) added from ${p.code} – enter their prices` : `${p.code} has no components or wiring recorded`);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setLoadingItems(false);
+    }
+  };
 
   const fromProject = (pid, base) => {
     const p = projects.find((x) => String(x.id) === String(pid));
@@ -43,6 +85,11 @@ export default function InvoiceFormModal({ open, onClose, invoice, defaults = {}
       setValues(fromProject(defaults.project_id, blank()));
     }
   }, [open, invoice, projects.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Opening "New invoice" from a project page pre-loads that project's items once.
+  useEffect(() => {
+    if (open && !invoice && defaults.project_id) importProjectItems(defaults.project_id, { quiet: true });
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setItem = (i, k, val) => {
     setValue('items', v.items.map((it, j) => (j === i ? { ...it, [k]: val } : it)));
@@ -102,7 +149,11 @@ export default function InvoiceFormModal({ open, onClose, invoice, defaults = {}
         <Field label="Project" className="md:col-span-3" hint="Selecting a project fills in the customer details">
           <Select
             value={v.project_id}
-            onChange={(e) => setValues((s) => (e.target.value ? fromProject(e.target.value, s) : { ...s, project_id: '' }))}
+            onChange={(e) => {
+              const pid = e.target.value;
+              setValues((s) => (pid ? fromProject(pid, s) : { ...s, project_id: '', items: s.items.filter((it) => !it.auto).length ? s.items.filter((it) => !it.auto) : [newItem()] }));
+              if (pid) importProjectItems(pid);
+            }}
             placeholder="Not linked to a project"
             options={projects.map((p) => ({ value: String(p.id), label: `${p.code} – ${p.title} (${p.customer_name})` }))}
           />
@@ -129,6 +180,7 @@ export default function InvoiceFormModal({ open, onClose, invoice, defaults = {}
                 <div className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_100px_160px_150px_44px] md:items-start">
                   <div>
                     <Input value={it.description} error={errors[`items.${i}.description`]} onChange={(e) => setItem(i, 'description', e.target.value)} placeholder="Item or service" />
+                    {it.auto && <p className="mt-1 text-[11px] font-semibold text-gold">From project</p>}
                     <FieldError error={errors[`items.${i}.description`]} />
                   </div>
                   <div>
@@ -140,14 +192,19 @@ export default function InvoiceFormModal({ open, onClose, invoice, defaults = {}
                     <FieldError error={errors[`items.${i}.unit_price`]} />
                   </div>
                   <p className="pt-2.5 text-right text-sm font-bold">{lkr((Number(it.quantity) || 0) * (Number(it.unit_price) || 0))}</p>
-                  <Button variant="ghost" size="icon" disabled={v.items.length === 1} onClick={() => setValue('items', v.items.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" title="Remove line" className="hover:!bg-bad/15 hover:!text-bad" onClick={() => setValue('items', v.items.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
         </div>
         <FieldError error={errors.items} />
-        <Button variant="secondary" size="sm" icon={Plus} className="mt-3" onClick={() => setValue('items', [...v.items, newItem()])}>Add line</Button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" icon={Plus} onClick={() => setValue('items', [...v.items, newItem()])}>Add manual line</Button>
+          {v.project_id && (
+            <Button variant="gold" size="sm" icon={PackagePlus} loading={loadingItems} onClick={() => importProjectItems(v.project_id)}>Reload project items</Button>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">

@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { FolderKanban, Phone, Plus } from 'lucide-react';
-import { api, errorMessage } from '../../lib/api';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FolderKanban, Phone, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { fmtDate, lkr } from '../../lib/format';
 import { categoryLabel, PROJECT_CATEGORIES, PROJECT_STATUSES, statusOf } from '../../lib/constants';
 import { clean, useUrlFilters } from '../../lib/useUrlFilters';
-import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, Pagination, Row, Skeleton, Table } from '../../components/ui';
+import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Pagination, Row, Skeleton, Table } from '../../components/ui';
 import FilterBar from '../../components/FilterBar';
 
 const KEYS = ['q', 'status', 'category', 'from', 'to'];
@@ -19,6 +21,13 @@ export default function ProjectsPage() {
     placeholderData: keepPreviousData,
   });
   const anyFilter = KEYS.some((k) => filters[k]);
+  const qc = useQueryClient();
+  const [toDelete, setToDelete] = useState(null);
+  const deleteProject = async (code) => {
+    const r = await deleteWithCode(`/projects/${toDelete.id}`, code);
+    toast.success(r.data.message);
+    ['projects', 'project', 'dashboard', 'finance', 'transactions', 'invoices', 'quotations', 'contractors', 'contractor', 'notifications', 'upcoming'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  };
 
   return (
     <div>
@@ -51,7 +60,7 @@ export default function ProjectsPage() {
           />
         ) : (
           <>
-            <Table head={['Project', 'Customer', 'Category', 'Status', 'Contractor', { label: 'Contract / Collected', className: 'text-right' }, 'Date']}>
+            <Table head={['Project', 'Customer', 'Category', 'Status', 'Contractor', { label: 'Contract / Collected', className: 'text-right' }, 'Date', '']}>
               {data.rows.map((p, i) => {
                 const s = statusOf(p.status);
                 const pct = p.contract_value > 0 ? Math.min(100, (p.collected / p.contract_value) * 100) : 0;
@@ -76,6 +85,12 @@ export default function ProjectsPage() {
                       <p className="mt-0.5 text-[11px] text-dim">{lkr(p.collected)} collected</p>
                     </td>
                     <td className="td text-xs text-muted">{fmtDate(p.installation_date || p.start_date || p.created_at)}</td>
+                    <td className="td">
+                      <Button variant="ghost" size="icon" title="Delete project" className="hover:!bg-bad/15 hover:!text-bad"
+                        onClick={(e) => { e.stopPropagation(); setToDelete(p); }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </td>
                   </Row>
                 );
               })}
@@ -84,6 +99,14 @@ export default function ProjectsPage() {
           </>
         )}
       </Card>
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onClose={() => setToDelete(null)}
+        onConfirm={deleteProject}
+        title={`Delete project ${toDelete?.code}?`}
+        message={`"${toDelete?.title}" for ${toDelete?.customer_name} and everything recorded under it will be removed:`}
+        details={['Components, wiring, service dates and service agreement', 'All payments and expenses with their bills', 'All invoices and quotations with files', 'Notifications']}
+      />
     </div>
   );
 }

@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Eye, FileSpreadsheet, Pencil, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, errorMessage } from '../../lib/api';
+import { api, deleteWithCode, errorMessage } from '../../lib/api';
 import { fmtDate, lkr } from '../../lib/format';
 import { INVOICE_STATUS } from '../../lib/constants';
 import { openDocument } from '../../lib/docs';
@@ -35,18 +35,11 @@ export default function InvoicesPage() {
       toast.error(errorMessage(e));
     }
   };
-  const del = useMutation({
-    mutationFn: (inv) => api.delete(`/invoices/${inv.id}`),
-    onSuccess: (r) => {
-      toast.success(r.data.message);
-      setToDelete(null);
-      qc.invalidateQueries({ queryKey: ['invoices'] });
-    },
-    onError: (e) => {
-      setToDelete(null);
-      toast.error(errorMessage(e));
-    },
-  });
+  const deleteItem = async (code) => {
+    await deleteWithCode(`/invoices/${toDelete.id}`, code);
+    toast.success(`${toDelete.code} permanently deleted`);
+    ['invoices', 'finance', 'project', 'notifications'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  };
 
   const totals = data.reduce((a, i) => ({ total: a.total + (i.status === 'cancelled' ? 0 : i.total), paid: a.paid + i.paid, balance: a.balance + (i.status === 'cancelled' ? 0 : Math.max(0, i.balance)) }), { total: 0, paid: 0, balance: 0 });
 
@@ -96,8 +89,8 @@ export default function InvoicesPage() {
       </Card>
       <InvoiceFormModal open={Boolean(modal)} onClose={() => setModal(null)} invoice={modal?.invoice} />
       <TransactionFormModal open={Boolean(pay)} onClose={() => setPay(null)} mode={pay?.mode} defaults={pay?.defaults} />
-      <ConfirmDialog open={Boolean(toDelete)} onClose={() => setToDelete(null)} onConfirm={() => del.mutate(toDelete)} loading={del.isPending}
-        title={`Delete ${toDelete?.code}?`} message="Invoices with payments cannot be deleted – set them to Cancelled instead." />
+      <ConfirmDialog open={Boolean(toDelete)} onClose={() => setToDelete(null)} onConfirm={deleteItem}
+        title={`Delete ${toDelete?.code}?`} message="The invoice and its line items will be removed. Payments already recorded against it stay on the project as normal payments." />
     </div>
   );
 }

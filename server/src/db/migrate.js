@@ -19,6 +19,7 @@ export async function migrate() {
     await client.query('SELECT pg_advisory_lock($1)', [LOCK_ID]);
     await runMigrations(client);
     await ensureAdmin(client);
+    await ensureDeleteCode(client);
   } finally {
     await client.query('SELECT pg_advisory_unlock($1)', [LOCK_ID]).catch(() => {});
     await client.end();
@@ -53,6 +54,15 @@ async function ensureAdmin(client) {
   const hash = await bcrypt.hash(password, 12);
   await client.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', [username, hash]);
   console.log(`✔ admin account "${username}" created`);
+}
+
+/** The code required to confirm any permanent delete (stored hashed). */
+async function ensureDeleteCode(client) {
+  const { rows } = await client.query(`SELECT 1 FROM settings WHERE key = 'delete_code'`);
+  if (rows[0]) return;
+  const hash = await bcrypt.hash(process.env.DELETE_CODE || '0518', 10);
+  await client.query(`INSERT INTO settings (key, value) VALUES ('delete_code', $1)`, [{ hash }]);
+  console.log('✔ delete code configured');
 }
 
 // Allow `npm run db:migrate`

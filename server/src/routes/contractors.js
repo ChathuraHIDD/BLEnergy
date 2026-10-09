@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../db/index.js';
-import { HttpError, notFound } from '../utils/errors.js';
+import { query, withTransaction } from '../db/index.js';
+import { notFound } from '../utils/errors.js';
 import { idParam, likeTerm, optEmail, optText, phone, reqText } from '../utils/validation.js';
 import { startPdf, fmtDate, label, lkr } from '../pdf/template.js';
 
@@ -96,16 +96,19 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const id = idParam(req);
-  const { rows: used } = await query(
-    `SELECT (SELECT count(*) FROM projects WHERE wiring_contractor_id = $1) + (SELECT count(*) FROM transactions WHERE contractor_id = $1) AS n`,
-    [id],
-  );
-  if (used[0].n > 0) {
-    throw new HttpError(409, 'This contractor has projects or payments on record. Mark them as inactive instead of deleting');
-  }
-  const { rows } = await query('DELETE FROM contractors WHERE id = $1 RETURNING id', [id]);
-  if (!rows[0]) throw notFound('Contractor');
-  res.json({ message: 'Contractor deleted' });
+  // Deletes the contractor and all payments made to them (with bills). Their projects are kept, unassigned.
+  const code = await withTransaction(async (client) => {
+    const { rows: files } = await client.query(
+      'SELECT tf.file_id FROM transaction_files tf JOIN transactions t ON t.id = tf.transaction_id WHERE t.contractor_id = $1',
+      [id],
+    );
+    await client.query('DELETE FROM transactions WHERE contractor_id = $1', [id]);
+    const { rows } = await client.query('DELETE FROM contractors WHERE id = $1 RETURNING code', [id]);
+    if (!rows[0]) throw notFound('Contractor');
+    if (files.length) await client.query('DELETE FROM files WHERE id = ANY($1)', [files.map((f) => f.file_id)]);
+    return rows[0].code;
+  });
+  res.json({ message: `Contractor ${code} and their payments were permanently deleted` });
 });
 
 router.get('/:id/pdf', async (req, res) => {

@@ -15,9 +15,9 @@ export const PROJECT_STATUSES = [
 ];
 
 export const COMPONENT_TYPES = [
-  { value: 'solar_panel', label: 'Solar Panels', single: 'Solar Panel', sizeHint: 'e.g. 550W', icon: 'sun' },
-  { value: 'inverter', label: 'Inverter', single: 'Inverter', sizeHint: 'e.g. 10kW', icon: 'zap' },
-  { value: 'battery', label: 'Battery', single: 'Battery', sizeHint: 'e.g. 10kWh / 48V 200Ah', icon: 'battery' },
+  { value: 'solar_panel', label: 'Solar Panels', single: 'Solar Panel', units: ['kW'], sizeHint: 'e.g. 5.5', icon: 'sun' },
+  { value: 'inverter', label: 'Inverter', single: 'Inverter', units: ['kW'], sizeHint: 'e.g. 10', icon: 'zap' },
+  { value: 'battery', label: 'Battery', single: 'Battery', units: ['kWh', 'Ah'], sizeHint: 'e.g. 10', icon: 'battery' },
 ];
 
 export const PAYMENT_METHODS = [
@@ -46,6 +46,15 @@ export const QUOTATION_STATUS = {
   accepted: { label: 'Accepted', tone: 'ok' },
   rejected: { label: 'Rejected', tone: 'bad' },
 };
+
+/** Split a stored size such as "10 kWh" into its number and unit (unit falls back to the type's default). */
+export function parseSize(size, type) {
+  const units = COMPONENT_TYPES.find((t) => t.value === type)?.units || [''];
+  const m = String(size || '').trim().match(/^([\d.]+)\s*([a-zA-Z]*)$/);
+  if (!m) return { num: String(size || ''), unit: units[0] };
+  const unit = units.find((u) => u.toLowerCase() === m[2].toLowerCase()) || units[0];
+  return { num: m[1], unit };
+}
 
 export const statusOf = (value) => PROJECT_STATUSES.find((s) => s.value === value) || { label: value, tone: 'muted' };
 export const categoryLabel = (value) => PROJECT_CATEGORIES.find((c) => c.value === value)?.label || value;
